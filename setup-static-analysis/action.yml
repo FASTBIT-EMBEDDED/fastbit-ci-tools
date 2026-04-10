@@ -1,0 +1,30 @@
+name: Setup Static Analysis Tools
+description: Install cppcheck, clang-tidy, and clang-format with pinned versions
+
+inputs:
+  clang-version:
+    description: LLVM/Clang major version for clang-tidy and clang-format
+    required: false
+    default: '18'
+
+runs:
+  using: composite
+  steps:
+    - name: Install static analysis tools
+      shell: bash
+      run: |
+        sudo apt-get update -qq
+        sudo apt-get install -y -qq cppcheck clang-tidy-${{ inputs.clang-version }} clang-format-${{ inputs.clang-version }}
+
+    - name: Create version-neutral symlinks
+      shell: bash
+      run: |
+        sudo ln -sf /usr/bin/clang-tidy-${{ inputs.clang-version }} /usr/bin/clang-tidy
+        sudo ln -sf /usr/bin/clang-format-${{ inputs.clang-version }} /usr/bin/clang-format
+
+    - name: Verify tools
+      shell: bash
+      run: |
+        echo "cppcheck: $(cppcheck --version)"
+        echo "clang-tidy: $(clang-tidy --version | head -1)"
+        echo "clang-format: $(clang-format --version)"

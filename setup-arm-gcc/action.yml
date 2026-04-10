@@ -1,0 +1,43 @@
+name: Setup ARM GCC Toolchain
+description: Download and cache the ARM GNU toolchain for cross-compiling Cortex-M firmware
+
+inputs:
+  version:
+    description: ARM GNU toolchain release tag
+    required: false
+    default: '14.2.rel1'
+
+outputs:
+  gcc-path:
+    description: Path to the toolchain bin directory
+    value: /opt/arm-gcc/bin
+  cache-hit:
+    description: Whether the toolchain was restored from cache
+    value: ${{ steps.cache.outputs.cache-hit }}
+
+runs:
+  using: composite
+  steps:
+    - name: Cache ARM GCC toolchain
+      id: cache
+      uses: actions/cache@v4
+      with:
+        path: /opt/arm-gcc
+        key: arm-gcc-${{ inputs.version }}-${{ runner.os }}
+
+    - name: Download ARM GCC toolchain
+      if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        curl -fSL "https://developer.arm.com/-/media/Files/downloads/gnu/${{ inputs.version }}/binrel/arm-gnu-toolchain-${{ inputs.version }}-x86_64-arm-none-eabi.tar.xz" -o /tmp/arm-gcc.tar.xz
+        sudo mkdir -p /opt/arm-gcc
+        sudo tar xf /tmp/arm-gcc.tar.xz -C /opt/arm-gcc --strip-components=1
+        rm /tmp/arm-gcc.tar.xz
+
+    - name: Add ARM GCC to PATH
+      shell: bash
+      run: echo "/opt/arm-gcc/bin" >> "$GITHUB_PATH"
+
+    - name: Verify ARM GCC
+      shell: bash
+      run: arm-none-eabi-gcc --version
