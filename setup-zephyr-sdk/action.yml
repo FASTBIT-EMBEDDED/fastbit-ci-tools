@@ -1,0 +1,52 @@
+name: Setup Zephyr SDK
+description: Download, cache, and register the Zephyr SDK for a single toolchain (ARM by default)
+
+inputs:
+  version:
+    description: Zephyr SDK release tag (e.g. 0.16.8). Must be compatible with the Zephyr version pinned in the consumer's west.yml.
+    required: false
+    default: '0.16.8'
+  toolchain:
+    description: Single Zephyr SDK toolchain to install (passed to setup.sh -t). Common values are arm-zephyr-eabi, riscv64-zephyr-elf, xtensa-espressif_esp32_zephyr-elf.
+    required: false
+    default: 'arm-zephyr-eabi'
+
+outputs:
+  cache-hit:
+    description: Whether the SDK was restored from cache
+    value: ${{ steps.cache.outputs.cache-hit }}
+
+runs:
+  using: composite
+  steps:
+    - name: Cache Zephyr SDK
+      id: cache
+      uses: actions/cache@v4
+      with:
+        path: ~/zephyr-sdk-${{ inputs.version }}
+        key: zephyr-sdk-${{ inputs.version }}-${{ inputs.toolchain }}
+
+    - name: Download and install Zephyr SDK
+      if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        cd ~
+        SDK="zephyr-sdk-${{ inputs.version }}"
+        URL="https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v${{ inputs.version }}/${SDK}_linux-x86_64_minimal.tar.xz"
+        wget -q "${URL}"
+        tar -xf "${SDK}_linux-x86_64_minimal.tar.xz"
+        rm -f "${SDK}_linux-x86_64_minimal.tar.xz"
+        cd "${SDK}"
+        ./setup.sh -t ${{ inputs.toolchain }} -c -h
+
+    # Register the SDK with Zephyr's CMake package registry on every run
+    # (including cache hits, where the previous setup.sh -c -h exited but
+    # the registration is per-runner and does not persist across cache
+    # restores). Export ZEPHYR_SDK_INSTALL_DIR so downstream `west build`
+    # steps in the caller job pick up the toolchain without extra config.
+    - name: Register Zephyr SDK
+      shell: bash
+      run: |
+        cd ~/zephyr-sdk-${{ inputs.version }}
+        ./setup.sh -c -h || true
+        echo "ZEPHYR_SDK_INSTALL_DIR=$HOME/zephyr-sdk-${{ inputs.version }}" >> "$GITHUB_ENV"
